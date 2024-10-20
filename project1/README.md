@@ -87,3 +87,5 @@ https://github.com/cran/moments/blob/master/R/skewness.R
 - [Random Forest, XGB, Ridge, Lasso : All in one](https://www.kaggle.com/code/janvichokshi/random-forest-xgb-ridge-lasso-all-in-one/notebook)
 
 - [House Price Prediction: Top 4 %](https://www.kaggle.com/code/noussairmighri/house-price-prediction-top-4/notebook)
+
+- [Regularized Linear Models](https://www.kaggle.com/code/apapiu/regularized-linear-models)
