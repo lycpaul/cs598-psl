@@ -79,3 +79,11 @@ However, if you believe an essential package is missing from our list and its in
 
 Helpful Tip: If you only need a specific function from a package, it might be more efficient to directly copy that function and include it at the beginning of your code. For instance, last year, a team wanted to use the skewness function from the R package moments. They were able to simply copy the function (in the linked below) and embed it directly into their script.
 https://github.com/cran/moments/blob/master/R/skewness.R
+
+
+
+### Referenced Kaggle Notebook
+
+- [Random Forest, XGB, Ridge, Lasso : All in one](https://www.kaggle.com/code/janvichokshi/random-forest-xgb-ridge-lasso-all-in-one/notebook)
+
+- [House Price Prediction: Top 4 %](https://www.kaggle.com/code/noussairmighri/house-price-prediction-top-4/notebook)
