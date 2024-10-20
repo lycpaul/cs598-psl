@@ -89,3 +89,5 @@ https://github.com/cran/moments/blob/master/R/skewness.R
 - [House Price Prediction: Top 4 %](https://www.kaggle.com/code/noussairmighri/house-price-prediction-top-4/notebook)
 
 - [Regularized Linear Models](https://www.kaggle.com/code/apapiu/regularized-linear-models)
+
+- [How I made top 0.3% on a Kaggle competition](https://www.kaggle.com/code/lavanyashukla01/how-i-made-top-0-3-on-a-kaggle-competition)
