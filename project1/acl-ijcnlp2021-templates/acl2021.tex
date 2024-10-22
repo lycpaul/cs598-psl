@@ -55,20 +55,18 @@
 
 \subsection{Data Loading and Initial Preparation}
 The dataset was organized into training and testing sets, each stored in
-separate CSV files within designated fold directories. For each fold, the
-training data was loaded from \texttt{train.csv}, where the first column
-(presumably an identifier) was excluded, and the target variable was extracted
-from the last column. The target variable underwent a logarithmic
-transformation using the \texttt{log1p} function to stabilize variance and
-normalize the distribution. Similarly, the testing data was loaded from
-\texttt{test.csv}, and the corresponding true target values were obtained from
-\texttt{test\_y.csv}, also applying the logarithmic transformation.
+separate CSV files within designated fold directories. The training data was
+loaded from \texttt{train.csv}, where the first column (PID) was excluded, and
+the target variable was extracted from the last column.
+
+The target variable underwent a logarithmic transformation using the
+\texttt{log1p} function to stabilize variance and normalize the distribution.
+Sale price with extreme values were removed by identifying rows with price
+larger or smaller than 3 standard deviations from the mean.
 
 \subsection{Data Cleaning}
 \subsubsection{Numerical Features}
-\begin{itemize}
-  \item \textbf{Garage Year Built (\texttt{Garage\_Yr\_Blt}):} Values exceeding the maximum year of 2011 were considered corrupted and set to \texttt{NaN}. Missing values in \texttt{Garage\_Yr\_Blt} were subsequently imputed using the \texttt{Year\_Built} feature to ensure consistency.
-\end{itemize}
+\textbf{Garage Year Built (\texttt{Garage\_Yr\_Blt}):} Values exceeding the maximum year of 2011 were considered corrupted and set to \texttt{NaN}. Missing values in \texttt{Garage\_Yr\_Blt} were subsequently imputed using the \texttt{Year\_Built} feature to ensure consistency.
 
 \subsubsection{Categorical Features}
 Features with missing values were identified by calculating the sum of nulls in
@@ -77,27 +75,43 @@ from the analysis by dropping these columns entirely. This step ensured that
 the dataset used for modeling did not contain incomplete categorical
 information.
 
-\subsection{Feature Engineering}
+\subsubsection{Imbalanced and Irrelevant Variables}
+As suggested by the instructor, the following variables were removed from the
+dataset: \texttt{Street, Utilities, Condition\_2, Roof\_Matl, Heating,
+  Pool\_QC, Misc\_Val, Low\_Qual\_Fin\_SF, Pool\_Area, Longitude, Latitude}.
+These variables were consided imbalanced categorical variables with most
+samples belonging to a single category or don't offer interpretable
+information.
+
+\subsection{Feature Transformation}
 \subsubsection{Numerical Features}
-A predefined list of numerical features (\texttt{linear\_numeric\_feats}) was
-selected for analysis. These included variables such as \texttt{Lot\_Area},
-\texttt{Year\_Built}, \texttt{Total\_Bsmt\_SF}, \texttt{Gr\_Liv\_Area}, and
-geographic coordinates (\texttt{Latitude}, \texttt{Longitude}).
+Numerical features were identified by checking the data type of each column.
+They were further processed with winsorization, skewness transformation and
+outlier removal.
+
+\paragraph{Winsorization}
+For certain numerical variables, values exceeding the 95th percentile were
+capped at the 95th percentile. These variables include \texttt{Lot\_Frontage,
+  Lot\_Area, Mas\_Vnr\_Area, BsmtFin\_SF\_2, Bsmt\_Unf\_SF, Total\_Bsmt\_SF,
+  Second\_Flr\_SF, First\_Flr\_SF, Gr\_Liv\_Area, Garage\_Area, Wood\_Deck\_SF,
+  Open\_Porch\_SF, Enclosed\_Porch, Three\_season\_porch, Screen\_Porch ,and
+  Misc\_Val}.
 
 \paragraph{Skewness Transformation}
 The skewness of each numerical feature was assessed using the \texttt{skew}
 function from the \texttt{scipy.stats} module. Features exhibiting skewness
-greater than a threshold of 0.75 were identified as significantly skewed. These
+greater than a threshold of 0.5 were identified as significantly skewed. These
 skewed features underwent a logarithmic transformation (\texttt{log1p}) to
-reduce skewness and approximate a normal distribution.
+reduce skewness and approximate a normal distribution. Features with such
+transformations were identified as \texttt{skewed\_feats} and will perform the
+same logarithmic transformation on testing set.
 
-\subsubsection{Outlier Removal}
-For each feature in \texttt{linear\_numeric\_feats}, outliers were detected
-using the Z-score method. Data points with an absolute Z-score exceeding a
-threshold of 5 were considered outliers and subsequently removed from both the
-feature set (\texttt{X\_train\_processed}) and the target variable
-(\texttt{y\_train\_processed}). This process was iteratively applied to all
-relevant numerical features to enhance the robustness of the models.
+\paragraph{Outlier Removal}
+For all numerical features, outliers were detected using the Z-score method.
+Data points with an absolute Z-score exceeding a threshold of 5 were considered
+outliers and subsequently removed from both the feature set and the target
+variable. This process was iteratively applied to all numerical features to
+enhance the robustness of the models.
 
 \subsubsection{Categorical Encoding}
 Categorical variables were transformed into numerical representations using
@@ -114,11 +128,11 @@ utilizing different algorithms and hyperparameters:
 
   \item \textbf{Ridge Regression (\texttt{RidgeCV}):}
         \begin{itemize}
-          \item Utilized cross-validated Ridge regression with a pipeline that included
+          \item Utilized 5-fold cross-validated Ridge regression with a pipeline that included
                 \texttt{RobustScaler} for feature scaling.
           \item A range of alpha values was explored using \texttt{np.logspace(-1, 3, 100)} to
                 identify the optimal regularization strength.
-          \item Both training and test RMSE were reported.
+          \item Used negative root mean squared error as the scoring metric.
         \end{itemize}
 
   \item \textbf{XGBoost Regressor (\texttt{XGBRegressor}):}
@@ -126,8 +140,6 @@ utilizing different algorithms and hyperparameters:
           \item Configured with predefined hyperparameters, including \texttt{max\_depth},
                 \texttt{learning\_rate}, \texttt{n\_estimators}, and regularization terms
                 (\texttt{reg\_alpha}, \texttt{reg\_lambda}).
-          \item The model was trained on the processed data, and both training and test RMSE
-                were evaluated.
         \end{itemize}
 \end{enumerate}
 
@@ -140,49 +152,53 @@ the \texttt{XGBRegressor} parameters.
         \texttt{max\_depth}, \texttt{learning\_rate}, \texttt{n\_estimators},
         \texttt{min\_child\_weight}, \texttt{subsample}, \texttt{colsample\_bytree},
         \texttt{reg\_alpha}, and \texttt{reg\_lambda}.
-  \item A Tree-structured Parzen Estimator (TPE) sampler with a fixed random seed
-        ensured reproducibility.
   \item The optimization aimed to minimize RMSE using 5-fold cross-validation over 50
-        trials. The best parameters identified from this search were intended to be
-        applied to retrain the XGBoost model, although this step was commented out in
-        the current implementation.
+        trials. The best parameters identified from this search is applied to retrain
+        the XGBoost model.
 \end{itemize}
 
 \subsection{Execution Workflow}
 For each of the 10 predefined folds:
 \begin{enumerate}
-  \item \textbf{Data Loading:} Train and test datasets for the respective fold were loaded.
-  \item \textbf{Data Cleaning and Transformation:} Applied the cleaning, transformation, and encoding steps as detailed above.
-  \item \textbf{Model Training and Evaluation:} Each regression model was trained on the processed training data and evaluated on both training and test sets using RMSE as the performance metric.
-  \item \textbf{Reporting:} RMSE values for each model were printed for both training and test datasets to assess performance consistency and potential overfitting.
+  \item \textbf{Preprocessing training data:} ONLY train datasets for the respective fold were loaded. Then applied the cleaning, transformation, and encoding steps as detailed above.
+  \item \textbf{Model Training:} Each regression model was trained on the processed training data.
+  \item \textbf{Preprocessing test data:} Test datasets for the respective fold were loaded. Then applied the same preprocessing steps as training data.
+  \item \textbf{Prediction:} Predictions on the test dataset were generated and saved into \texttt{mysubmission1.csv} and \texttt{mysubmission2.csv} for Ridge and XGBoost models, respectively.
 \end{enumerate}
 
 \section{Performance Metrics}
-Submission are evaluated on Root-Mean-Squared-Error (RMSE) between the natural
+Models were evaluated with Root-Mean-Squared-Error (RMSE) between the natural
 logarithm of the predicted price and the natural logarithm of the observed
 sales price. The following table summarizes the RMSE achieved by each model
-across all 10 training/test splits. Lower RMSE values indicate better
-predictive performance.
+across all 10 training/test splits. Both the Ridge regression model and XGBoost
+model arhived the desired RMSE: 0.125 for the initial 5 training/test splits
+and 0.135 for the subsequent 5 training/test splits.
 
 \begin{table}[h]
   \centering
   \begin{tabular}{c c c}
     \Xhline{2\arrayrulewidth}
-            & RMSE (1-5 folds) & RMSE (6-10 folds) \\
+    RMSE   & Ridge    & XGBoost  \\
     \hline
-    Ridge   & 0.11183          & 0.12515           \\
-    XGBoost & 0.11183          & 0.12515           \\
+    fold1  & 0.116114 & 0.111148 \\
+    fold2  & 0.117437 & 0.114520 \\
+    fold3  & 0.115723 & 0.110675 \\
+    fold4  & 0.115164 & 0.115495 \\
+    fold5  & 0.108005 & 0.104979 \\
+    fold6  & 0.128512 & 0.123666 \\
+    fold7  & 0.130906 & 0.129087 \\
+    fold8  & 0.129505 & 0.126017 \\
+    fold9  & 0.130229 & 0.130740 \\
+    fold10 & 0.122325 & 0.122325 \\
     \Xhline{2\arrayrulewidth}
   \end{tabular}
   \caption{RMSE of each model across 10 folds}
 \end{table}
 
+\subsection{Hardware Used}
 \begin{itemize}
-  \item Hardware used in this project:
-        \begin{itemize}
-          \item CPU: AMD Ryzen 5 3600 6-Core Processor with 48GB RAM
-          \item GPU: GeForce RTX 3090 Ti 24GB
-        \end{itemize}
+  \item CPU: AMD Ryzen 5 3600 6-Core Processor with 48GB RAM
+  \item GPU: GeForce RTX 3090 Ti 24GB
 \end{itemize}
 
 \end{document}

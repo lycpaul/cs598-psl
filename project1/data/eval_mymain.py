@@ -23,5 +23,5 @@ if __name__ == "__main__":
         target_fold_dir = f"project1/data/fold{fold}"
         y_test, y_pred_ridge, y_pred_xgb = load_dataframe(target_fold_dir)
         print(f"Target fold directory: {target_fold_dir}")
-        print(f"Ridge RMSE: {rmse(y_test, y_pred_ridge)}")
-        print(f"XGB   RMSE: {rmse(y_test, y_pred_xgb)}")
+        print(f"Ridge RMSE: {rmse(y_test, y_pred_ridge):.6f}")
+        print(f"XGB   RMSE: {rmse(y_test, y_pred_xgb):.6f}")
