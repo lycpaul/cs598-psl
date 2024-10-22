@@ -23,14 +23,16 @@ from optuna.samplers import TPESampler
 import warnings
 warnings.filterwarnings('ignore')
 
+from FeatureCluster import FeatureClusterer
+
 # Set random seed
 seed_val = 1160
 np.random.seed(seed_val)
 
-linear_numeric_feats = ['Lot_Frontage', 'Lot_Area', 'Year_Built', 'Year_Remod_Add',
-                        'Mas_Vnr_Area', 'Bsmt_Unf_SF', 'Total_Bsmt_SF', 'First_Flr_SF',
-                        'Second_Flr_SF', 'Gr_Liv_Area', 'Garage_Area', 'Wood_Deck_SF',
-                        'Open_Porch_SF', 'Latitude', 'Longitude']
+# linear_numeric_feats = ['Lot_Frontage', 'Lot_Area', 'Year_Built', 'Year_Remod_Add',
+#                         'Mas_Vnr_Area', 'Bsmt_Unf_SF', 'Total_Bsmt_SF', 'First_Flr_SF',
+#                         'Second_Flr_SF', 'Gr_Liv_Area', 'Garage_Area', 'Wood_Deck_SF',
+#                         'Open_Porch_SF', 'Latitude', 'Longitude']
 
 # linear_numeric_feats = ["Lot_Frontage", "Lot_Area", "Year_Built", "Year_Remod_Add", "Mas_Vnr_Area", "BsmtFin_SF_2", "Bsmt_Unf_SF", "Total_Bsmt_SF", "First_Flr_SF", "Second_Flr_SF",
 #                         "Low_Qual_Fin_SF", "Gr_Liv_Area", "Garage_Yr_Blt", "Garage_Area", "Wood_Deck_SF", "Open_Porch_SF", "Enclosed_Porch", "Three_season_porch", "Screen_Porch", "Misc_Val", "Longitude", "Latitude"]
@@ -76,16 +78,16 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     ).sum() != 0].sort_values(ascending=False)
     df = df.drop(columns=train_null.index)
     print(f"Dropping categorical features with missing values: {train_null}")
-    
+
     return df
 
 
-def process_numeric_features(df: pd.DataFrame, skew_threshold: float = 0.75) -> tuple[pd.DataFrame, list]:
+def process_numeric_features(df: pd.DataFrame, skew_threshold: float = 0.5) -> tuple[pd.DataFrame, list]:
     # log transform skewed numeric features:
-    # numeric_feats = df.dtypes[df.dtypes != "object"].index
+    numeric_feats = df.dtypes[df.dtypes != "object"].index
 
     # only consider the skewed features
-    skewed_feats = df[linear_numeric_feats].apply(
+    skewed_feats = df[numeric_feats].apply(
         lambda x: skew(x.dropna()))  # compute skewness
     skewed_feats = skewed_feats[skewed_feats > skew_threshold]
     skewed_feats = skewed_feats.index
@@ -123,7 +125,8 @@ def full_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame, 
 def ridge_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame, y_test: pd.Series) -> float:
     ridge_alphas = np.logspace(-1, 3, 100)
     model = make_pipeline(RobustScaler(), RidgeCV(
-        alphas=ridge_alphas, cv=10))
+        alphas=ridge_alphas, cv=5, scoring='neg_root_mean_squared_error'))
+
     model.fit(X_train, y_train)
     y_pred_train = model.predict(X_train)
     train_rmse = rmse(y_train, y_pred_train)
@@ -134,8 +137,11 @@ def ridge_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame,
 
 def lasso_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame, y_test: pd.Series) -> float:
     lasso_alphas = np.logspace(-5, -2, 100)
-    model = LassoCV(alphas=lasso_alphas, cv=10, random_state=seed_val)
+    model = LassoCV(alphas=lasso_alphas, cv=5, random_state=seed_val)
     model.fit(X_train, y_train)
+
+    print(f"Lasso alpha: {model.alpha_}")
+
     y_pred_train = model.predict(X_train)
     train_rmse = rmse(y_train, y_pred_train)
     y_pred = model.predict(X_test)
@@ -144,7 +150,7 @@ def lasso_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame,
 
 
 def elasticnet_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame, y_test: pd.Series) -> float:
-    model = ElasticNetCV(alphas=np.logspace(-5, 3, 100), cv=10)
+    model = ElasticNetCV(alphas=np.logspace(-5, 3, 100), cv=5)
     model.fit(X_train, y_train)
     y_pred_train = model.predict(X_train)
     train_rmse = rmse(y_train, y_pred_train)
@@ -215,7 +221,6 @@ def tune_xgboost_params(X_train: pd.DataFrame, y_train: pd.Series, n_trials: int
 
     return trial.params
 
-
 def main(target_fold_dir: str) -> None:
     # Load the dataframes
     X_train, y_train, X_test, y_test = load_dataframe(target_fold_dir)
@@ -240,18 +245,38 @@ def main(target_fold_dir: str) -> None:
     X_test_processed[skewed_feats] = np.log1p(X_test_processed[skewed_feats])
 
     # Delete outliers in linear numerical features
-    # numeric_feats = X_train_processed.dtypes[X_train_processed.dtypes != "object"].index
-    for feature in linear_numeric_feats:
+    numeric_feats = X_train_processed.dtypes[X_train_processed.dtypes != "object"].index
+    for feature in numeric_feats:
         if feature in X_train_processed.columns:
             X_train_processed, y_train_processed = delete_outliers(
                 X_train_processed, y_train_processed, feature)
+            
+    # Initialize and fit the FeatureClusterer on training data
+    clusterer = FeatureClusterer(threshold=0.9)
+    clusterer.fit(X_train_processed)
+
+    # Transform both training and testing data based on the fitted clusters
+    X_train_processed = clusterer.transform(X_train_processed)
+    X_test_processed = clusterer.transform(X_test_processed)
 
     # Preprocess categorical features
     X_train_processed = pd.get_dummies(X_train_processed)
     X_test_processed = pd.get_dummies(X_test_processed)
     # If testing data don't have the feature, fill it with the mean of the training data
+    # find the missing columns
+    missing_cols = set(X_train_processed.columns) - \
+        set(X_test_processed.columns)
+    print(f"Missing columns: {missing_cols}")
+    X_train_mean = X_train_processed.mean()
+
+    # fill the missing columns with the mean of the training data
     X_test_processed = X_test_processed.reindex(
-        columns=X_train_processed.columns, fill_value=0)
+        columns=X_train_processed.columns)
+    for col in missing_cols:
+        X_test_processed[col] = X_train_mean[col]
+        
+    # cols in this stage
+    print(X_train_processed.columns)
 
     # Train models
     model_params = {
@@ -299,9 +324,9 @@ def main(target_fold_dir: str) -> None:
 if __name__ == '__main__':
 
     # Train all folds
-    for fold in range(1, 11):
-        print(f"#### Fold {fold}: ####")
-        main(f'fold{fold}')
-        print()
+    # for fold in range(1, 11):
+    #     print(f"#### Fold {fold}: ####")
+    #     main(f'fold{fold}')
+    #     print()
 
-    # main(f'fold4')
+    main(f'project1/data/fold6')
