@@ -18,9 +18,10 @@ def rmse(y_test: pd.Series, y_pred: pd.Series) -> float:
 
 
 if __name__ == "__main__":
-    target_fold_dir = "project1/data/fold1"
-    y_test, y_pred_ridge, y_pred_xgb = load_dataframe(target_fold_dir)
-
-    print(f"Target fold directory: {target_fold_dir}")
-    print(f"Ridge RMSE: {rmse(y_test, y_pred_ridge)}")
-    print(f"XGB RMSE: {rmse(y_test, y_pred_xgb)}")
+    # evaluate all folds
+    for fold in range(1, 11):
+        target_fold_dir = f"project1/data/fold{fold}"
+        y_test, y_pred_ridge, y_pred_xgb = load_dataframe(target_fold_dir)
+        print(f"Target fold directory: {target_fold_dir}")
+        print(f"Ridge RMSE: {rmse(y_test, y_pred_ridge)}")
+        print(f"XGB   RMSE: {rmse(y_test, y_pred_xgb)}")
