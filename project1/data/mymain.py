@@ -11,6 +11,7 @@ from scipy import stats
 from scipy.stats import skew
 
 import warnings
+import time
 warnings.filterwarnings('ignore')
 
 # Set random seed
@@ -116,12 +117,16 @@ def main(target_dir: str) -> None:
 
     # Train models
     # Ridge model
+    ridge_start_time = time.time()
     ridge_alphas = np.logspace(-1, 3, 100)
     ridge_model = make_pipeline(RobustScaler(), RidgeCV(
         alphas=ridge_alphas, cv=5, scoring='neg_root_mean_squared_error'))
     ridge_model.fit(X_train, y_train)
+    ridge_end_time = time.time()
+    print(f"Ridge model training time: {ridge_end_time - ridge_start_time:.2f} seconds")
 
     # parameters tuned by optuna
+    xgb_start_time = time.time()
     xgb_params = {'objective': 'reg:squarederror',
                   'max_depth': 4,
                   'learning_rate': 0.009469809175065902,
@@ -134,7 +139,9 @@ def main(target_dir: str) -> None:
                   'random_state': seed_val}
     xgboost_model = XGBRegressor(**xgb_params)
     xgboost_model.fit(X_train, y_train)
-
+    xgboost_end_time = time.time()
+    print(f"XGBoost model training time: {xgboost_end_time - xgb_start_time:.2f} seconds")
+    
     #########################################
     # Step 2: Preprocess test data, then save predictions into two files
 

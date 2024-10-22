@@ -178,18 +178,19 @@ and 0.135 for the subsequent 5 training/test splits.
   \centering
   \begin{tabular}{c c c}
     \Xhline{2\arrayrulewidth}
-    RMSE   & Ridge    & XGBoost  \\
+    RMSE \\
+    / Runtime & Ridge    & XGBoost  \\
     \hline
-    fold1  & 0.116114 & 0.111148 \\
-    fold2  & 0.117437 & 0.114520 \\
-    fold3  & 0.115723 & 0.110675 \\
-    fold4  & 0.115164 & 0.115495 \\
-    fold5  & 0.108005 & 0.104979 \\
-    fold6  & 0.128512 & 0.123666 \\
-    fold7  & 0.130906 & 0.129087 \\
-    fold8  & 0.129505 & 0.126017 \\
-    fold9  & 0.130229 & 0.130740 \\
-    fold10 & 0.122325 & 0.122325 \\
+    fold1  & 0.116114 / 3.20s & 0.111148 / 6.39s \\
+    fold2  & 0.117437 / 2.99s & 0.114520 / 6.17s \\
+    fold3  & 0.115723 / 2.99s & 0.110675 / 6.60s \\
+    fold4  & 0.115164 / 2.86s & 0.115495 / 6.47s \\
+    fold5  & 0.108005 / 2.93s & 0.104979 / 6.20s \\
+    fold6  & 0.128512 / 3.00s & 0.123666 / 6.16s \\
+    fold7  & 0.130906 / 3.00s & 0.129087 / 6.98s \\
+    fold8  & 0.129505 / 3.13s & 0.126017 / 6.41s \\
+    fold9  & 0.130229 / 2.72s & 0.130740 / 6.41s \\
+    fold10 & 0.122325 / 3.00s & 0.122325 / 6.21s \\
     \Xhline{2\arrayrulewidth}
   \end{tabular}
   \caption{RMSE of each model across 10 folds}
