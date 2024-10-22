@@ -166,24 +166,24 @@ def elasticnet_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataF
 
 def xgboost_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame, y_test: pd.Series) -> float:
     # tune by optuna
-    # xgb_params = {'objective': 'reg:squarederror',
-    #               'max_depth': 5,
-    #               'learning_rate': 0.0074012209282183683,
-    #               'n_estimators': 2800,
-    #               'min_child_weight': 10,
-    #               'subsample': 0.5259427801631228,
-    #               'colsample_bytree': 0.5525252726939558,
-    #               'reg_alpha': 5.8503033950745276e-05,
-    #               'reg_lambda': 0.07447269431255081,
-    #               'random_state': seed_val}
-
-    # suggested params
     xgb_params = {'objective': 'reg:squarederror',
-                  'max_depth': 6,
-                  'learning_rate': 0.05,
-                  'n_estimators': 5000,
-                  'subsample': 0.5,
+                  'max_depth': 4,
+                  'learning_rate': 0.009469809175065902,
+                  'n_estimators': 4600,
+                  'min_child_weight': 3,
+                  'subsample': 0.4071521943355695,
+                  'colsample_bytree': 0.788589645736069,
+                  'reg_alpha': 0.005345576307828712,
+                  'reg_lambda': 0.00019771013593545314,
                   'random_state': seed_val}
+
+    # suggested params by TA
+    # xgb_params = {'objective': 'reg:squarederror',
+    #               'max_depth': 6,
+    #               'learning_rate': 0.05,
+    #               'n_estimators': 5000,
+    #               'subsample': 0.5,
+    #               'random_state': seed_val}
 
     xgb_tuned = XGBRegressor(**xgb_params)
     xgb_tuned.fit(X_train, y_train)
@@ -197,11 +197,11 @@ def xgboost_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFram
 def objective(trial: optuna.Trial, X_train: pd.DataFrame, y_train: pd.Series) -> float:
     # Suggest hyperparameters
     param = {
-        'max_depth': trial.suggest_int('max_depth', 3, 10),
+        'max_depth': trial.suggest_int('max_depth', 4, 7),
         'learning_rate': trial.suggest_float('learning_rate', 1e-4, 1e-1, log=True),
-        'n_estimators': trial.suggest_int('n_estimators', 100, 5000, step=100),
+        'n_estimators': trial.suggest_int('n_estimators', 2500, 5000, step=100),
         'min_child_weight': trial.suggest_int('min_child_weight', 1, 10),
-        'subsample': trial.suggest_float('subsample', 0.5, 1.0),
+        'subsample': trial.suggest_float('subsample', 0.4, 0.6),
         'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1.0),
         'reg_alpha': trial.suggest_float('reg_alpha', 1e-5, 1e-1, log=True),
         'reg_lambda': trial.suggest_float('reg_lambda', 1e-5, 1e-1, log=True),
@@ -350,15 +350,15 @@ def main(target_fold_dir: str) -> None:
     rmse_errors['xgboost_model'] = xgboost_model(**model_params)
 
     # Hyperparameter Tuning
-    # print("Xgboost rmse before tuning: ", xgboost_model_rmse)
+    # print("Xgboost rmse before tuning: ", rmse_errors['xgboost_model'])
     # print("Starting hyperparameter tuning for XGBoost...")
     # tuned_params = tune_xgboost_params(
-    #     X_train_processed, y_train_processed, n_trials=100)
+    #     X_train_processed, y_train_processed, n_trials=50)
     # print(f"Tuned params: {tuned_params}")
     # xgb_tuned = XGBRegressor(**tuned_params)
     # xgb_tuned.fit(X_train_processed, y_train_processed)
     # y_pred_xgb_tuned = xgb_tuned.predict(X_test_processed)
-    # xgboost_model_rmse = rmse(y_test_log, y_pred_xgb_tuned)
+    # xgboost_model_rmse = rmse(y_test, y_pred_xgb_tuned)
 
     # Conclusion
     # print("Training Error:")
@@ -373,7 +373,7 @@ def main(target_fold_dir: str) -> None:
     # print("Test Error:")
     # print(f"Full model score: {rmse_errors['full_model'][1]:.5f} RMSE")
     # print(f"Lasso score with optimal alpha: {
-        #   rmse_errors['lasso_model'][1]:.5f} RMSE")
+    #   rmse_errors['lasso_model'][1]:.5f} RMSE")
     print(f"Ridge score with optimal alpha: {
           rmse_errors['ridge_model'][1]:.5f} RMSE")
     # print(f"Elasticnet score: {rmse_errors['elasticnet_model'][1]:.5f} RMSE")
@@ -384,11 +384,10 @@ def main(target_fold_dir: str) -> None:
 
 if __name__ == '__main__':
     # Train one fold
-    # main(f'project1/data/fold1')
+    # main(f'project1/data/fold7')
 
     # Train all folds
     rmse_errors = {}
     for fold in range(1, 11):
         print(f"#### Fold {fold}: ####")
         rmse_errors[f'fold{fold}'] = main(f'project1/data/fold{fold}')
-        print()
