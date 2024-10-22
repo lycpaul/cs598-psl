@@ -1,3 +1,5 @@
+from category_encoders import MEstimateEncoder, TargetEncoder, BinaryEncoder, OrdinalEncoder, OneHotEncoder
+from CrossFoldEncoder import CrossFoldEncoder
 import seaborn as sns
 import numpy as np
 import pandas as pd
@@ -23,8 +25,6 @@ from optuna.samplers import TPESampler
 import warnings
 warnings.filterwarnings('ignore')
 
-from CrossFoldEncoder import CrossFoldEncoder
-from category_encoders import MEstimateEncoder, TargetEncoder, BinaryEncoder, OrdinalEncoder, OneHotEncoder
 
 # Set random seed
 seed_val = 1160
@@ -80,6 +80,12 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop(columns=train_null.index)
     print(f"Dropping categorical features with missing values: {train_null}")
 
+    # suggested variable removal
+    remove_cols = ['Street', 'Utilities', 'Condition_2', 'Roof_Matl', 'Heating',
+                   'Pool_QC', 'Misc_Val', 'Low_Qual_Fin_SF', 'Pool_Area', 'Longitude', 'Latitude']
+    print(df.columns)
+    df = df.drop(columns=remove_cols)
+    print(f"Dropping variables: {remove_cols}")
     return df
 
 
@@ -222,22 +228,25 @@ def tune_xgboost_params(X_train: pd.DataFrame, y_train: pd.Series, n_trials: int
 
     return trial.params
 
+
 def label_encoding(df):
     le = LabelEncoder()
     for col in df.select_dtypes(exclude=['number']).columns:
         df[col] = le.fit_transform(df[col])
     return df
 
+
 def categorical_encoding(X_train, y_train, X_test):
     encoder = TargetEncoder(smoothing=1)
-    
+
     categorical_cols = X_train.select_dtypes(exclude=['number']).columns
     print(f"Categorical columns: {categorical_cols}")
-    
+
     for col in categorical_cols:
         X_train[col] = encoder.fit_transform(X_train[col], y_train)
         X_test[col] = encoder.transform(X_test[col])
     return X_train, X_test
+
 
 def main(target_fold_dir: str) -> None:
     # Load the dataframes
@@ -268,14 +277,14 @@ def main(target_fold_dir: str) -> None:
         if feature in X_train_processed.columns:
             X_train_processed, y_train_processed = delete_outliers(
                 X_train_processed, y_train_processed, feature)
-            
+
     # Preprocess categorical features
     # separate the categorical and numerical features
     X_train_cat = X_train_processed.select_dtypes(exclude=['number'])
     X_train_num = X_train_processed.select_dtypes(include=['number'])
     X_test_cat = X_test_processed.select_dtypes(exclude=['number'])
     X_test_num = X_test_processed.select_dtypes(include=['number'])
-    
+
     # method 1: dummy encoding
     X_train_cat = pd.get_dummies(X_train_cat)
     X_test_cat = pd.get_dummies(X_test_cat)
@@ -290,7 +299,7 @@ def main(target_fold_dir: str) -> None:
         columns=X_train_cat.columns)
     for col in missing_cols:
         X_test_cat[col] = X_train_mean[col]
-        
+
     print("X_test_cat_cols.columns", X_test_cat.columns)
 
     # combine the categorical and numerical features
@@ -303,26 +312,17 @@ def main(target_fold_dir: str) -> None:
     print(len(X_train_processed.columns))
 
     # Train models
-    regression_model_params = {
-        'X_train': X_train_num,
-        'y_train': y_train_processed,
-        'X_test': X_test_num,
-        'y_test': y_test
-    }
-    full_model_train_rmse, full_model_test_rmse = full_model(**regression_model_params)
-    ridge_model_train_rmse, ridge_model_test_rmse = ridge_model(**regression_model_params)
-    lasso_model_train_rmse, lasso_model_test_rmse = lasso_model(**regression_model_params)
-    elasticnet_model_train_rmse, elasticnet_model_test_rmse = elasticnet_model(
-        **regression_model_params)
-    
-    tree_model_params = {
+    model_params = {
         'X_train': X_train_processed,
         'y_train': y_train_processed,
         'X_test': X_test_processed,
         'y_test': y_test
     }
-    xgboost_model_train_rmse, xgboost_model_test_rmse = xgboost_model(
-        **tree_model_params)
+    full_model_train_rmse, full_model_test_rmse = full_model(**model_params)
+    ridge_model_train_rmse, ridge_model_test_rmse = ridge_model(**model_params)
+    lasso_model_train_rmse, lasso_model_test_rmse = lasso_model(**model_params)
+    elasticnet_model_train_rmse, elasticnet_model_test_rmse = elasticnet_model(**model_params)
+    xgboost_model_train_rmse, xgboost_model_test_rmse = xgboost_model(**model_params)
 
     # Hyperparameter Tuning
     # print("Xgboost rmse before tuning: ", xgboost_model_rmse)
