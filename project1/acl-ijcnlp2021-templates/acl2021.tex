@@ -1,0 +1,204 @@
+%
+% File acl2021.tex
+%
+%% Based on the style files for EMNLP 2020, which were
+%% Based on the style files for ACL 2020, which were
+%% Based on the style files for ACL 2018, NAACL 2018/19, which were
+%% Based on the style files for ACL-2015, with some improvements
+%%  taken from the NAACL-2016 style
+%% Based on the style files for ACL-2014, which were, in turn,
+%% based on ACL-2013, ACL-2012, ACL-2011, ACL-2010, ACL-IJCNLP-2009,
+%% EACL-2009, IJCNLP-2008...
+%% Based on the style files for EACL 2006 by 
+%%e.agirre@ehu.es or Sergi.Balari@uab.es
+%% and that of ACL 08 by Joakim Nivre and Noah Smith
+
+\documentclass[11pt,a4paper]{article}
+\usepackage[hyperref]{acl2021}
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage{makecell}
+\usepackage{amsmath}
+\usepackage{graphicx} %% inserted
+\renewcommand{\UrlFont}{\ttfamily\small}
+
+% This is not strictly necessary, and may be commented out,
+% but it will improve the layout of the manuscript,
+% and will typically save some space.
+\usepackage{microtype}
+
+\aclfinalcopy
+%\def\aclpaperid{***} %  Enter the acl Paper ID here
+
+%\setlength\titlebox{5cm}
+% You can expand the titlebox if you need extra space
+% to show all the authors. Please do not make the titlebox
+% smaller than 5cm (the original size); we will check this
+% in the camera-ready version and ask you to change it back.
+
+% Content lightly modified from original work by Jesse Dodge and Noah Smith
+
+
+\newcommand\BibTeX{B\textsc{ib}\TeX}
+
+\title{Technical Report of CS598 Project 1 - Predict the Housing Prices in Ames}
+
+\author{Yu-Chung Lee \\
+  \texttt{\{ycl7@illinois.edu\}} \\
+  UID: 665451160 \\
+  Net ID: ycl7 \\
+  } 
+\begin{document}
+\maketitle
+
+\section{Technical Details}
+
+\subsection{Data Loading and Initial Preparation}
+The dataset was organized into training and testing sets, each stored in
+separate CSV files within designated fold directories. For each fold, the
+training data was loaded from \texttt{train.csv}, where the first column
+(presumably an identifier) was excluded, and the target variable was extracted
+from the last column. The target variable underwent a logarithmic
+transformation using the \texttt{log1p} function to stabilize variance and
+normalize the distribution. Similarly, the testing data was loaded from
+\texttt{test.csv}, and the corresponding true target values were obtained from
+\texttt{test\_y.csv}, also applying the logarithmic transformation.
+
+\subsection{Data Cleaning}
+\subsubsection{Numerical Features}
+\begin{itemize}
+  \item \textbf{Garage Year Built (\texttt{Garage\_Yr\_Blt}):} Values exceeding the maximum year of 2011 were considered corrupted and set to \texttt{NaN}. Missing values in \texttt{Garage\_Yr\_Blt} were subsequently imputed using the \texttt{Year\_Built} feature to ensure consistency.
+\end{itemize}
+
+\subsubsection{Categorical Features}
+Features with missing values were identified by calculating the sum of nulls in
+each column. Any categorical feature containing missing values was excluded
+from the analysis by dropping these columns entirely. This step ensured that
+the dataset used for modeling did not contain incomplete categorical
+information.
+
+\subsection{Feature Engineering}
+\subsubsection{Numerical Features}
+A predefined list of numerical features (\texttt{linear\_numeric\_feats}) was
+selected for analysis. These included variables such as \texttt{Lot\_Area},
+\texttt{Year\_Built}, \texttt{Total\_Bsmt\_SF}, \texttt{Gr\_Liv\_Area}, and
+geographic coordinates (\texttt{Latitude}, \texttt{Longitude}).
+
+\paragraph{Skewness Transformation}
+The skewness of each numerical feature was assessed using the \texttt{skew}
+function from the \texttt{scipy.stats} module. Features exhibiting skewness
+greater than a threshold of 0.75 were identified as significantly skewed. These
+skewed features underwent a logarithmic transformation (\texttt{log1p}) to
+reduce skewness and approximate a normal distribution.
+
+\subsubsection{Outlier Removal}
+For each feature in \texttt{linear\_numeric\_feats}, outliers were detected
+using the Z-score method. Data points with an absolute Z-score exceeding a
+threshold of 5 were considered outliers and subsequently removed from both the
+feature set (\texttt{X\_train\_processed}) and the target variable
+(\texttt{y\_train\_processed}). This process was iteratively applied to all
+relevant numerical features to enhance the robustness of the models.
+
+\subsubsection{Categorical Encoding}
+Categorical variables were transformed into numerical representations using
+one-hot encoding via the \texttt{pd.get\_dummies} function. To ensure
+consistency between training and testing datasets, the testing set was
+reindexed to match the columns of the training set, filling any missing
+categories with zeros.
+
+\subsection{Model Implementation}
+Multiple regression models were employed to predict the target variable, each
+utilizing different algorithms and hyperparameters:
+
+\begin{enumerate}
+  \item \textbf{Linear Regression (\texttt{LinearRegression}):}
+        \begin{itemize}
+          \item A basic linear regression model was fitted to the processed training data.
+          \item \textbf{Training Error:} Calculated by predicting on the training set and computing the Root Mean Squared Error (RMSE) against the actual values.
+          \item \textbf{Test Error:} RMSE calculated on the test set predictions.
+        \end{itemize}
+
+  \item \textbf{Ridge Regression (\texttt{RidgeCV}):}
+        \begin{itemize}
+          \item Utilized cross-validated Ridge regression with a pipeline that included
+                \texttt{RobustScaler} for feature scaling.
+          \item A range of alpha values was explored using \texttt{np.logspace(-1, 3, 100)} to
+                identify the optimal regularization strength.
+          \item Both training and test RMSE were reported.
+        \end{itemize}
+
+  \item \textbf{Lasso Regression (\texttt{LassoCV}):}
+        \begin{itemize}
+          \item Employed cross-validated Lasso regression to enforce sparsity in the model
+                coefficients.
+          \item Alpha values were sampled from a logarithmic space between \texttt{1e-5} and
+                \texttt{1e-2}.
+          \item Training and test RMSE were computed based on the optimal alpha.
+        \end{itemize}
+
+  \item \textbf{XGBoost Regressor (\texttt{XGBRegressor}):}
+        \begin{itemize}
+          \item Configured with predefined hyperparameters, including \texttt{max\_depth},
+                \texttt{learning\_rate}, \texttt{n\_estimators}, and regularization terms
+                (\texttt{reg\_alpha}, \texttt{reg\_lambda}).
+          \item The model was trained on the processed data, and both training and test RMSE
+                were evaluated.
+        \end{itemize}
+\end{enumerate}
+
+\subsubsection{Hyperparameter Tuning}
+An Optuna-based hyperparameter optimization framework was set up to fine-tune
+the \texttt{XGBRegressor} parameters.
+
+\begin{itemize}
+  \item The \texttt{objective} function defined the search space for parameters such as
+        \texttt{max\_depth}, \texttt{learning\_rate}, \texttt{n\_estimators},
+        \texttt{min\_child\_weight}, \texttt{subsample}, \texttt{colsample\_bytree},
+        \texttt{reg\_alpha}, and \texttt{reg\_lambda}.
+  \item A Tree-structured Parzen Estimator (TPE) sampler with a fixed random seed
+        ensured reproducibility.
+  \item The optimization aimed to minimize RMSE using 5-fold cross-validation over 50
+        trials. The best parameters identified from this search were intended to be
+        applied to retrain the XGBoost model, although this step was commented out in
+        the current implementation.
+\end{itemize}
+
+\subsection{Execution Workflow}
+For each of the 10 predefined folds:
+\begin{enumerate}
+  \item \textbf{Data Loading:} Train and test datasets for the respective fold were loaded.
+  \item \textbf{Data Cleaning and Transformation:} Applied the cleaning, transformation, and encoding steps as detailed above.
+  \item \textbf{Model Training and Evaluation:} Each regression model was trained on the processed training data and evaluated on both training and test sets using RMSE as the performance metric.
+  \item \textbf{Reporting:} RMSE values for each model were printed for both training and test datasets to assess performance consistency and potential overfitting.
+\end{enumerate}
+
+\section{Performance Metrics}
+Submission are evaluated on Root-Mean-Squared-Error (RMSE) between the natural
+logarithm of the predicted price and the natural logarithm of the observed
+sales price. The following table summarizes the RMSE achieved by each model
+across all 10 training/test splits. Lower RMSE values indicate better
+predictive performance.
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{c c c}
+    \Xhline{2\arrayrulewidth}
+            & RMSE (1-5 folds) & RMSE (6-10 folds) \\
+    \hline
+    Ridge   & 0.11183          & 0.12515           \\
+    Lasso   & 0.11183          & 0.12515           \\
+    XGBoost & 0.11183          & 0.12515           \\
+    \Xhline{2\arrayrulewidth}
+  \end{tabular}
+  \caption{RMSE of each model across 10 folds}
+\end{table}
+
+\begin{itemize}
+  \item Hardware used in this project:
+        \begin{itemize}
+          \item CPU: AMD Ryzen 5 3600 6-Core Processor with 48GB RAM
+          \item GPU: GeForce RTX 3090 Ti 24GB
+        \end{itemize}
+\end{itemize}
+
+\end{document}

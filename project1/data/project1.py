@@ -299,9 +299,9 @@ def main(target_fold_dir: str) -> None:
 if __name__ == '__main__':
 
     # Train all folds
-    # for fold in range(1, 11):
-    #     print(f"#### Fold {fold}: ####")
-    #     main(f'fold{fold}')
-    #     print()
+    for fold in range(1, 11):
+        print(f"#### Fold {fold}: ####")
+        main(f'fold{fold}')
+        print()
 
-    main(f'fold4')
+    # main(f'fold4')
