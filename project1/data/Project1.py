@@ -23,7 +23,8 @@ from optuna.samplers import TPESampler
 import warnings
 warnings.filterwarnings('ignore')
 
-from KMeanClustering import cluster_labels, cluster_distance
+from CrossFoldEncoder import CrossFoldEncoder
+from category_encoders import MEstimateEncoder, TargetEncoder, BinaryEncoder, OrdinalEncoder, OneHotEncoder
 
 # Set random seed
 seed_val = 1160
@@ -221,6 +222,23 @@ def tune_xgboost_params(X_train: pd.DataFrame, y_train: pd.Series, n_trials: int
 
     return trial.params
 
+def label_encoding(df):
+    le = LabelEncoder()
+    for col in df.select_dtypes(exclude=['number']).columns:
+        df[col] = le.fit_transform(df[col])
+    return df
+
+def categorical_encoding(X_train, y_train, X_test):
+    encoder = TargetEncoder(smoothing=1)
+    
+    categorical_cols = X_train.select_dtypes(exclude=['number']).columns
+    print(f"Categorical columns: {categorical_cols}")
+    
+    for col in categorical_cols:
+        X_train[col] = encoder.fit_transform(X_train[col], y_train)
+        X_test[col] = encoder.transform(X_test[col])
+    return X_train, X_test
+
 def main(target_fold_dir: str) -> None:
     # Load the dataframes
     X_train, y_train, X_test, y_test = load_dataframe(target_fold_dir)
@@ -252,38 +270,59 @@ def main(target_fold_dir: str) -> None:
                 X_train_processed, y_train_processed, feature)
             
     # Preprocess categorical features
-    X_train_processed = pd.get_dummies(X_train_processed)
-    X_test_processed = pd.get_dummies(X_test_processed)
+    # separate the categorical and numerical features
+    X_train_cat = X_train_processed.select_dtypes(exclude=['number'])
+    X_train_num = X_train_processed.select_dtypes(include=['number'])
+    X_test_cat = X_test_processed.select_dtypes(exclude=['number'])
+    X_test_num = X_test_processed.select_dtypes(include=['number'])
+    
+    # method 1: dummy encoding
+    X_train_cat = pd.get_dummies(X_train_cat)
+    X_test_cat = pd.get_dummies(X_test_cat)
     # If testing data don't have the feature, fill it with the mean of the training data
     # find the missing columns
-    missing_cols = set(X_train_processed.columns) - \
-        set(X_test_processed.columns)
+    missing_cols = set(X_train_cat.columns) - \
+        set(X_test_cat.columns)
     print(f"Missing columns: {missing_cols}")
-    X_train_mean = X_train_processed.mean()
-
+    X_train_mean = X_train_cat.mean()
     # fill the missing columns with the mean of the training data
-    X_test_processed = X_test_processed.reindex(
-        columns=X_train_processed.columns)
+    X_test_cat = X_test_cat.reindex(
+        columns=X_train_cat.columns)
     for col in missing_cols:
-        X_test_processed[col] = X_train_mean[col]
+        X_test_cat[col] = X_train_mean[col]
         
+    print("X_test_cat_cols.columns", X_test_cat.columns)
+
+    # combine the categorical and numerical features
+    X_train_processed = pd.concat([X_train_num, X_train_cat], axis=1)
+    X_test_processed = pd.concat([X_test_num, X_test_cat], axis=1)
+
+    #################
     # cols in this stage
     print(X_train_processed.columns)
+    print(len(X_train_processed.columns))
 
     # Train models
-    model_params = {
+    regression_model_params = {
+        'X_train': X_train_num,
+        'y_train': y_train_processed,
+        'X_test': X_test_num,
+        'y_test': y_test
+    }
+    full_model_train_rmse, full_model_test_rmse = full_model(**regression_model_params)
+    ridge_model_train_rmse, ridge_model_test_rmse = ridge_model(**regression_model_params)
+    lasso_model_train_rmse, lasso_model_test_rmse = lasso_model(**regression_model_params)
+    elasticnet_model_train_rmse, elasticnet_model_test_rmse = elasticnet_model(
+        **regression_model_params)
+    
+    tree_model_params = {
         'X_train': X_train_processed,
         'y_train': y_train_processed,
         'X_test': X_test_processed,
         'y_test': y_test
     }
-    full_model_train_rmse, full_model_test_rmse = full_model(**model_params)
-    ridge_model_train_rmse, ridge_model_test_rmse = ridge_model(**model_params)
-    lasso_model_train_rmse, lasso_model_test_rmse = lasso_model(**model_params)
-    elasticnet_model_train_rmse, elasticnet_model_test_rmse = elasticnet_model(
-        **model_params)
     xgboost_model_train_rmse, xgboost_model_test_rmse = xgboost_model(
-        **model_params)
+        **tree_model_params)
 
     # Hyperparameter Tuning
     # print("Xgboost rmse before tuning: ", xgboost_model_rmse)
