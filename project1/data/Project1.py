@@ -1,6 +1,3 @@
-from category_encoders import MEstimateEncoder, TargetEncoder, BinaryEncoder, OrdinalEncoder, OneHotEncoder
-from CrossFoldEncoder import CrossFoldEncoder
-import seaborn as sns
 import numpy as np
 import pandas as pd
 
@@ -8,15 +5,11 @@ from sklearn.model_selection import cross_val_score
 from sklearn.linear_model import LinearRegression, ElasticNetCV, RidgeCV, Ridge, LassoCV, Lasso
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import RobustScaler
-from sklearn.feature_selection import mutual_info_regression
-from sklearn.preprocessing import LabelEncoder
 
 from xgboost import XGBRegressor
-from lightgbm import LGBMRegressor
 
-import scipy
 from scipy import stats
-from scipy.stats import skew, pearsonr
+from scipy.stats import skew
 
 import optuna
 from optuna import Trial
@@ -144,9 +137,6 @@ def lasso_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame,
     lasso_alphas = np.logspace(-5, -2, 100)
     model = LassoCV(alphas=lasso_alphas, cv=5, random_state=seed_val)
     model.fit(X_train, y_train)
-
-    # print(f"Lasso alpha: {model.alpha_}")
-
     y_pred_train = model.predict(X_train)
     train_rmse = rmse(y_train, y_pred_train)
     y_pred = model.predict(X_test)
@@ -176,14 +166,6 @@ def xgboost_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFram
                   'reg_alpha': 0.005345576307828712,
                   'reg_lambda': 0.00019771013593545314,
                   'random_state': seed_val}
-
-    # suggested params by TA
-    # xgb_params = {'objective': 'reg:squarederror',
-    #               'max_depth': 6,
-    #               'learning_rate': 0.05,
-    #               'n_estimators': 5000,
-    #               'subsample': 0.5,
-    #               'random_state': seed_val}
 
     xgb_tuned = XGBRegressor(**xgb_params)
     xgb_tuned.fit(X_train, y_train)
@@ -313,19 +295,9 @@ def main(target_fold_dir: str) -> None:
                 X_train_processed, y_train_processed, feature)
 
     # Preprocess categorical features
-    # separate the categorical and numerical features
-    X_train_cat = X_train_processed.select_dtypes(exclude=['number'])
-    X_train_num = X_train_processed.select_dtypes(include=['number'])
-    X_test_cat = X_test_processed.select_dtypes(exclude=['number'])
-    X_test_num = X_test_processed.select_dtypes(include=['number'])
-
     # Encode categorical features using dummy encoding with K dummies
-    X_train_cat, X_test_cat = encode_categorical_features(
-        X_train_cat, X_test_cat)
-
-    # Combine the categorical and numerical features
-    X_train_processed = pd.concat([X_train_num, X_train_cat], axis=1)
-    X_test_processed = pd.concat([X_test_num, X_test_cat], axis=1)
+    X_train_processed, X_test_processed = encode_categorical_features(
+        X_train_processed, X_test_processed)
 
     #################
     # Train models
