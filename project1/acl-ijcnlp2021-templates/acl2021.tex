@@ -111,12 +111,6 @@ Multiple regression models were employed to predict the target variable, each
 utilizing different algorithms and hyperparameters:
 
 \begin{enumerate}
-  \item \textbf{Linear Regression (\texttt{LinearRegression}):}
-        \begin{itemize}
-          \item A basic linear regression model was fitted to the processed training data.
-          \item \textbf{Training Error:} Calculated by predicting on the training set and computing the Root Mean Squared Error (RMSE) against the actual values.
-          \item \textbf{Test Error:} RMSE calculated on the test set predictions.
-        \end{itemize}
 
   \item \textbf{Ridge Regression (\texttt{RidgeCV}):}
         \begin{itemize}
@@ -125,15 +119,6 @@ utilizing different algorithms and hyperparameters:
           \item A range of alpha values was explored using \texttt{np.logspace(-1, 3, 100)} to
                 identify the optimal regularization strength.
           \item Both training and test RMSE were reported.
-        \end{itemize}
-
-  \item \textbf{Lasso Regression (\texttt{LassoCV}):}
-        \begin{itemize}
-          \item Employed cross-validated Lasso regression to enforce sparsity in the model
-                coefficients.
-          \item Alpha values were sampled from a logarithmic space between \texttt{1e-5} and
-                \texttt{1e-2}.
-          \item Training and test RMSE were computed based on the optimal alpha.
         \end{itemize}
 
   \item \textbf{XGBoost Regressor (\texttt{XGBRegressor}):}
@@ -186,7 +171,6 @@ predictive performance.
             & RMSE (1-5 folds) & RMSE (6-10 folds) \\
     \hline
     Ridge   & 0.11183          & 0.12515           \\
-    Lasso   & 0.11183          & 0.12515           \\
     XGBoost & 0.11183          & 0.12515           \\
     \Xhline{2\arrayrulewidth}
   \end{tabular}
