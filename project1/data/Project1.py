@@ -58,10 +58,10 @@ def transform_training_target(X_train: pd.DataFrame, y_train: pd.Series, std_thr
     std = y_train.std()
     rows_to_drop = y_train[(y_train > mean + std_threshold * std) |
                            (y_train < mean - std_threshold * std)].index
-    print(f'Drop {len(rows_to_drop)} rows')
+    # print(f'Drop {len(rows_to_drop)} rows')
     X_train = X_train.drop(index=rows_to_drop)
     y_train = y_train.drop(index=rows_to_drop)
-    return X_train, y_train, mean
+    return X_train, y_train
 
 
 def clean(df: pd.DataFrame) -> pd.DataFrame:
@@ -78,14 +78,12 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     train_null = df.isnull().sum()[df.isnull(
     ).sum() != 0].sort_values(ascending=False)
     df = df.drop(columns=train_null.index)
-    print(f"Dropping categorical features with missing values: {train_null}")
+    # print(f"Dropping categorical features with missing values: {train_null}")
 
     # suggested variable removal
     remove_cols = ['Street', 'Utilities', 'Condition_2', 'Roof_Matl', 'Heating',
                    'Pool_QC', 'Misc_Val', 'Low_Qual_Fin_SF', 'Pool_Area', 'Longitude', 'Latitude']
-    print(df.columns)
     df = df.drop(columns=remove_cols)
-    print(f"Dropping variables: {remove_cols}")
     return df
 
 
@@ -101,8 +99,8 @@ def process_numeric_features(df: pd.DataFrame, skew_threshold: float = 0.5) -> t
 
     # log transform the skewed features
     df[skewed_feats] = np.log1p(df[skewed_feats])
-    print(f"Log transformed {len(skewed_feats)} skewed features")
-    print(f"The skewed features are {skewed_feats}")
+    # print(f"Log transformed {len(skewed_feats)} skewed features")
+    # print(f"The skewed features are {skewed_feats}")
     return df, skewed_feats
 
 
@@ -147,7 +145,7 @@ def lasso_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame,
     model = LassoCV(alphas=lasso_alphas, cv=5, random_state=seed_val)
     model.fit(X_train, y_train)
 
-    print(f"Lasso alpha: {model.alpha_}")
+    # print(f"Lasso alpha: {model.alpha_}")
 
     y_pred_train = model.predict(X_train)
     train_rmse = rmse(y_train, y_pred_train)
@@ -157,7 +155,7 @@ def lasso_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame,
 
 
 def elasticnet_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame, y_test: pd.Series) -> float:
-    model = ElasticNetCV(alphas=np.logspace(-5, 3, 100), cv=5)
+    model = ElasticNetCV(alphas=np.logspace(-1, 1, 100), cv=5)
     model.fit(X_train, y_train)
     y_pred_train = model.predict(X_train)
     train_rmse = rmse(y_train, y_pred_train)
@@ -167,15 +165,24 @@ def elasticnet_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataF
 
 
 def xgboost_model(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame, y_test: pd.Series) -> float:
+    # tune by optuna
+    # xgb_params = {'objective': 'reg:squarederror',
+    #               'max_depth': 5,
+    #               'learning_rate': 0.0074012209282183683,
+    #               'n_estimators': 2800,
+    #               'min_child_weight': 10,
+    #               'subsample': 0.5259427801631228,
+    #               'colsample_bytree': 0.5525252726939558,
+    #               'reg_alpha': 5.8503033950745276e-05,
+    #               'reg_lambda': 0.07447269431255081,
+    #               'random_state': seed_val}
+
+    # suggested params
     xgb_params = {'objective': 'reg:squarederror',
-                  'max_depth': 5,
-                  'learning_rate': 0.0074012209282183683,
-                  'n_estimators': 2800,
-                  'min_child_weight': 10,
-                  'subsample': 0.5259427801631228,
-                  'colsample_bytree': 0.5525252726939558,
-                  'reg_alpha': 5.8503033950745276e-05,
-                  'reg_lambda': 0.07447269431255081,
+                  'max_depth': 6,
+                  'learning_rate': 0.05,
+                  'n_estimators': 5000,
+                  'subsample': 0.5,
                   'random_state': seed_val}
 
     xgb_tuned = XGBRegressor(**xgb_params)
@@ -243,7 +250,7 @@ def encode_categorical_features(X_train: pd.DataFrame, X_test: pd.DataFrame) -> 
     # Identify categorical columns
     categorical_cols = X_train.select_dtypes(
         include=['object', 'category']).columns
-    print(f"Categorical columns to encode: {categorical_cols}")
+    # print(f"Categorical columns to encode: {categorical_cols}")
 
     # Perform dummy encoding on training and testing data
     X_train_encoded = pd.get_dummies(
@@ -258,6 +265,15 @@ def encode_categorical_features(X_train: pd.DataFrame, X_test: pd.DataFrame) -> 
     return X_train_encoded, X_test_encoded
 
 
+def winsorize_features(X_train: pd.DataFrame, X_test: pd.DataFrame, features: list) -> tuple[pd.DataFrame, pd.DataFrame]:
+    for feature in features:
+        M = X_train[feature].quantile(0.95)
+        X_train[feature] = np.where(X_train[feature] > M, M, X_train[feature])
+        X_test[feature] = np.where(X_test[feature] > M, M, X_test[feature])
+        # print(f"Winsorized {feature} at 95% quantile: {M}")
+    return X_train, X_test
+
+
 def main(target_fold_dir: str) -> None:
     # Load the dataframes
     X_train, y_train, X_test, y_test = load_dataframe(target_fold_dir)
@@ -268,8 +284,16 @@ def main(target_fold_dir: str) -> None:
     y_train_processed = y_train.copy()
 
     # Log transform the training target
-    X_train_processed, y_train_processed, y_train_mean = transform_training_target(
+    X_train_processed, y_train_processed = transform_training_target(
         X_train_processed, y_train_processed)
+
+    # Winsorize specified features
+    features_to_winsorize = ["Lot_Frontage", "Lot_Area", "Mas_Vnr_Area", "BsmtFin_SF_2", "Bsmt_Unf_SF",
+                             "Total_Bsmt_SF", "Second_Flr_SF", "First_Flr_SF", "Gr_Liv_Area", "Garage_Area",
+                             "Wood_Deck_SF", "Open_Porch_SF", "Enclosed_Porch", "Three_season_porch",
+                             "Screen_Porch", "Misc_Val"]
+    X_train_processed, X_test_processed = winsorize_features(
+        X_train_processed, X_test_processed, features_to_winsorize)
 
     # Clean the data
     X_train_processed = clean(X_train_processed)
@@ -304,10 +328,6 @@ def main(target_fold_dir: str) -> None:
     X_test_processed = pd.concat([X_test_num, X_test_cat], axis=1)
 
     #################
-    # cols in this stage
-    print(X_train_processed.columns)
-    print(len(X_train_processed.columns))
-
     # Train models
     model_params = {
         'X_train': X_train_processed,
@@ -315,13 +335,19 @@ def main(target_fold_dir: str) -> None:
         'X_test': X_test_processed,
         'y_test': y_test
     }
-    full_model_train_rmse, full_model_test_rmse = full_model(**model_params)
-    ridge_model_train_rmse, ridge_model_test_rmse = ridge_model(**model_params)
-    lasso_model_train_rmse, lasso_model_test_rmse = lasso_model(**model_params)
-    elasticnet_model_train_rmse, elasticnet_model_test_rmse = elasticnet_model(
-        **model_params)
-    xgboost_model_train_rmse, xgboost_model_test_rmse = xgboost_model(
-        **model_params)
+    rmse_errors = {
+        'full_model': ['train', 'test'],
+        'ridge_model': ['train', 'test'],
+        'lasso_model': ['train', 'test'],
+        'elasticnet_model': ['train', 'test'],
+        'xgboost_model': ['train', 'test']
+    }
+
+    # rmse_errors['full_model'] = full_model(**model_params)
+    rmse_errors['ridge_model'] = ridge_model(**model_params)
+    # rmse_errors['lasso_model'] = lasso_model(**model_params)
+    # rmse_errors['elasticnet_model'] = elasticnet_model(**model_params)
+    rmse_errors['xgboost_model'] = xgboost_model(**model_params)
 
     # Hyperparameter Tuning
     # print("Xgboost rmse before tuning: ", xgboost_model_rmse)
@@ -335,28 +361,34 @@ def main(target_fold_dir: str) -> None:
     # xgboost_model_rmse = rmse(y_test_log, y_pred_xgb_tuned)
 
     # Conclusion
-    print("Current fold target: ", target_fold_dir)
-    print("Training Error:")
-    print(f"Full model score: {full_model_train_rmse:.5f} RMSE")
-    print(f"Lasso score with optimal alpha: {lasso_model_train_rmse:.5f} RMSE")
-    print(f"Ridge score with optimal alpha: {ridge_model_train_rmse:.5f} RMSE")
-    print(f"Elasticnet score: {elasticnet_model_train_rmse:.5f} RMSE")
-    print(f"Boosting Tree score: {xgboost_model_train_rmse:.5f} RMSE")
+    # print("Training Error:")
+    # print(f"Full model score: {rmse_errors['full_model'][0]:.5f} RMSE")
+    # print(f"Lasso score with optimal alpha: {
+    #       rmse_errors['lasso_model'][0]:.5f} RMSE")
+    # print(f"Ridge score with optimal alpha: {
+    #       rmse_errors['ridge_model'][0]:.5f} RMSE")
+    # print(f"Elasticnet score: {rmse_errors['elasticnet_model'][0]:.5f} RMSE")
+    # print(f"Boosting Tree score: {rmse_errors['xgboost_model'][0]:.5f} RMSE")
 
-    print("Test Error:")
-    print(f"Full model score: {full_model_test_rmse:.5f} RMSE")
-    print(f"Lasso score with optimal alpha: {lasso_model_test_rmse:.5f} RMSE")
-    print(f"Ridge score with optimal alpha: {ridge_model_test_rmse:.5f} RMSE")
-    print(f"Elasticnet score: {elasticnet_model_test_rmse:.5f} RMSE")
-    print(f"Boosting Tree score: {xgboost_model_test_rmse:.5f} RMSE")
+    # print("Test Error:")
+    # print(f"Full model score: {rmse_errors['full_model'][1]:.5f} RMSE")
+    # print(f"Lasso score with optimal alpha: {
+        #   rmse_errors['lasso_model'][1]:.5f} RMSE")
+    print(f"Ridge score with optimal alpha: {
+          rmse_errors['ridge_model'][1]:.5f} RMSE")
+    # print(f"Elasticnet score: {rmse_errors['elasticnet_model'][1]:.5f} RMSE")
+    print(f"Boosting Tree score: {rmse_errors['xgboost_model'][1]:.5f} RMSE")
+
+    return rmse_errors
 
 
 if __name__ == '__main__':
+    # Train one fold
+    # main(f'project1/data/fold1')
 
     # Train all folds
-    # for fold in range(1, 11):
-    #     print(f"#### Fold {fold}: ####")
-    #     main(f'fold{fold}')
-    #     print()
-
-    main(f'project1/data/fold6')
+    rmse_errors = {}
+    for fold in range(1, 11):
+        print(f"#### Fold {fold}: ####")
+        rmse_errors[f'fold{fold}'] = main(f'project1/data/fold{fold}')
+        print()
