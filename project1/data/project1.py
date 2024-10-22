@@ -23,7 +23,7 @@ from optuna.samplers import TPESampler
 import warnings
 warnings.filterwarnings('ignore')
 
-from FeatureCluster import FeatureClusterer
+from KMeanClustering import cluster_labels, cluster_distance
 
 # Set random seed
 seed_val = 1160
@@ -251,14 +251,6 @@ def main(target_fold_dir: str) -> None:
             X_train_processed, y_train_processed = delete_outliers(
                 X_train_processed, y_train_processed, feature)
             
-    # Initialize and fit the FeatureClusterer on training data
-    clusterer = FeatureClusterer(threshold=0.9)
-    clusterer.fit(X_train_processed)
-
-    # Transform both training and testing data based on the fitted clusters
-    X_train_processed = clusterer.transform(X_train_processed)
-    X_test_processed = clusterer.transform(X_test_processed)
-
     # Preprocess categorical features
     X_train_processed = pd.get_dummies(X_train_processed)
     X_test_processed = pd.get_dummies(X_test_processed)
