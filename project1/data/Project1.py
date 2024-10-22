@@ -229,23 +229,33 @@ def tune_xgboost_params(X_train: pd.DataFrame, y_train: pd.Series, n_trials: int
     return trial.params
 
 
-def label_encoding(df):
-    le = LabelEncoder()
-    for col in df.select_dtypes(exclude=['number']).columns:
-        df[col] = le.fit_transform(df[col])
-    return df
+def encode_categorical_features(X_train: pd.DataFrame, X_test: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Encodes categorical features by creating K dummy variables for each categorical feature with K levels.
 
+    Args:
+        X_train (pd.DataFrame): Training features.
+        X_test (pd.DataFrame): Testing features.
 
-def categorical_encoding(X_train, y_train, X_test):
-    encoder = TargetEncoder(smoothing=1)
+    Returns:
+        tuple[pd.DataFrame, pd.DataFrame]: Encoded training and testing features.
+    """
+    # Identify categorical columns
+    categorical_cols = X_train.select_dtypes(
+        include=['object', 'category']).columns
+    print(f"Categorical columns to encode: {categorical_cols}")
 
-    categorical_cols = X_train.select_dtypes(exclude=['number']).columns
-    print(f"Categorical columns: {categorical_cols}")
+    # Perform dummy encoding on training and testing data
+    X_train_encoded = pd.get_dummies(
+        X_train, columns=categorical_cols, drop_first=False)
+    X_test_encoded = pd.get_dummies(
+        X_test, columns=categorical_cols, drop_first=False)
 
-    for col in categorical_cols:
-        X_train[col] = encoder.fit_transform(X_train[col], y_train)
-        X_test[col] = encoder.transform(X_test[col])
-    return X_train, X_test
+    # Align the training and testing dataframes by the dummy variables
+    X_train_encoded, X_test_encoded = X_train_encoded.align(
+        X_test_encoded, join='left', axis=1, fill_value=0)
+
+    return X_train_encoded, X_test_encoded
 
 
 def main(target_fold_dir: str) -> None:
@@ -285,24 +295,11 @@ def main(target_fold_dir: str) -> None:
     X_test_cat = X_test_processed.select_dtypes(exclude=['number'])
     X_test_num = X_test_processed.select_dtypes(include=['number'])
 
-    # method 1: dummy encoding
-    X_train_cat = pd.get_dummies(X_train_cat)
-    X_test_cat = pd.get_dummies(X_test_cat)
-    # If testing data don't have the feature, fill it with the mean of the training data
-    # find the missing columns
-    missing_cols = set(X_train_cat.columns) - \
-        set(X_test_cat.columns)
-    print(f"Missing columns: {missing_cols}")
-    X_train_mean = X_train_cat.mean()
-    # fill the missing columns with the mean of the training data
-    X_test_cat = X_test_cat.reindex(
-        columns=X_train_cat.columns)
-    for col in missing_cols:
-        X_test_cat[col] = X_train_mean[col]
+    # Encode categorical features using dummy encoding with K dummies
+    X_train_cat, X_test_cat = encode_categorical_features(
+        X_train_cat, X_test_cat)
 
-    print("X_test_cat_cols.columns", X_test_cat.columns)
-
-    # combine the categorical and numerical features
+    # Combine the categorical and numerical features
     X_train_processed = pd.concat([X_train_num, X_train_cat], axis=1)
     X_test_processed = pd.concat([X_test_num, X_test_cat], axis=1)
 
@@ -321,8 +318,10 @@ def main(target_fold_dir: str) -> None:
     full_model_train_rmse, full_model_test_rmse = full_model(**model_params)
     ridge_model_train_rmse, ridge_model_test_rmse = ridge_model(**model_params)
     lasso_model_train_rmse, lasso_model_test_rmse = lasso_model(**model_params)
-    elasticnet_model_train_rmse, elasticnet_model_test_rmse = elasticnet_model(**model_params)
-    xgboost_model_train_rmse, xgboost_model_test_rmse = xgboost_model(**model_params)
+    elasticnet_model_train_rmse, elasticnet_model_test_rmse = elasticnet_model(
+        **model_params)
+    xgboost_model_train_rmse, xgboost_model_test_rmse = xgboost_model(
+        **model_params)
 
     # Hyperparameter Tuning
     # print("Xgboost rmse before tuning: ", xgboost_model_rmse)
